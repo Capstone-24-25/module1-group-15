@@ -1,9 +1,10 @@
-# Load necessary libraries
 library(dplyr)
 library(ggplot2)
+library(readr)
 
 # Load the raw data
-biomarker_data <- read.csv("/mnt/data/biomarker-raw.csv")
+biomarker_data <- read_csv("~/Desktop/UCSB/Statistics & Data Science/PSTAT 197/module1-group-15/data/biomarker-raw.csv")
+View(biomarker_data)
 
 # Step 1: Identify outliers without trimming
 # Using a common method like 1.5 * IQR for identifying outliers per protein
