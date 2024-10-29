@@ -4,6 +4,7 @@ library(randomForest)
 library(tidymodels)
 library(modelr)
 library(yardstick)
+library(dplyr)
 load('data/biomarker-clean.RData')
 
 ## MULTIPLE TESTING
@@ -102,3 +103,4 @@ testing(biomarker_split) %>%
   class_metrics(estimate = est,
               truth = tr_c, pred,
               event_level = 'second')
+
