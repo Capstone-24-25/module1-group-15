@@ -1,6 +1,6 @@
 
 
-### 1.
+### Question 1
 Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
 ```{r}
 library(ggplot2)
@@ -30,7 +30,7 @@ ggplot(proteins_long, aes(x = Level)) +
 The histograms reveal that the distributions of raw protein levels are skewed right, with some values extending to higher ranges. 
 This skewness is a common reason to apply a log transformation, which can help normalize these distributions.
 
-### 2.
+### Question 2
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -83,4 +83,46 @@ Yes, there are specific subjects with outliers. According to the table of nsumma
 #### Are outliers more frequent in one group or the other?
 Outliers are more frequent in the ASD group.
 ASD group with a total of 2 outliers, while the TD group has none.
+
+### Question 3
+#### Step 1: Split Data into Training and Testing Sets
+```{r}
+library(dplyr)
+library(caret)  #data partition
+```
+
+```{r}
+# Load the data
+data <- read.csv("data2/biomarker-raw.csv")
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Split data into training (80%) and testing (20%) sets
+trainIndex <- createDataPartition(data$Group, p = 0.8, list = FALSE)
+training_data <- data[trainIndex, ]
+testing_data <- data[-trainIndex, ]
+
+```
+
+#### Step 2: Selection of Top Predictive Proteins (Using a Larger Set)
+```{r}
+# Load necessary library
+library(MASS)
+
+# Define formula with all protein features
+formula <- as.formula(paste("Group ~", paste(colnames(training_data)[-c(1,2)], collapse = " + ")))
+
+# Run logistic regression with forward stepwise selection based on AIC
+logistic_model <- glm(formula, data = training_data, family = binomial)
+stepwise_model <- stepAIC(logistic_model, direction = "forward")
+
+# Extract selected protein features
+top_proteins_logreg <- names(coef(stepwise_model))[-1]  # Exclude intercept
+print("Top proteins from logistic regression:")
+print(top_proteins_logreg)
+
+
+```
+
 
