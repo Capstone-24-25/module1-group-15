@@ -1,0 +1,67 @@
+---
+title: "module1"
+output: html_document
+date: "2024-10-29"
+---
+
+```{r}
+# Set the file path (if necessary)
+file_path <- "/Users/emmahe/Documents/GitHub/Module0-t_team9/module1-group-15/data/biomarker-raw.csv"
+
+# Read the CSV file into a dataframe
+biomarker_data <- read.csv(file_path)
+
+# Display the top 6 column names of biomarker_data
+head(colnames(biomarker_data), 6)
+```
+
+# 1.
+```{r}
+# 1
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Sample two proteins to visualize their distributions before and after log transformation
+# Replace with actual column names in your dataset
+sample_proteins <- biomarker_data %>%
+  select(`E3.ubiquitin.protein.ligase.CHIP`, `CCAAT.enhancer.binding.protein.beta`)
+
+# Plot distributions before log transformation
+ggplot(biomarker_data, aes(x = `E3.ubiquitin.protein.ligase.CHIP`)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  ggtitle("Distribution of E3 ubiquitin-protein ligase CHIP (Raw Values)") +
+  xlab("E3 ubiquitin-protein ligase CHIP Levels")
+
+ggplot(biomarker_data, aes(x = `CCAAT.enhancer.binding.protein.beta`)) +
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  ggtitle("Distribution of CCAAT/enhancer-binding protein beta (Raw Values)") +
+  xlab("CCAAT/enhancer-binding protein beta Levels")
+
+# Log-transform protein levels (add 1 to avoid log(0) if there are zero values)
+biomarker_data <- biomarker_data %>%
+  mutate(
+    `E3.ubiquitin.protein.ligase.CHIP_log` = log(`E3.ubiquitin.protein.ligase.CHIP` + 1),
+    `CCAAT.enhancer.binding.protein.beta_log` = log(`CCAAT.enhancer.binding.protein.beta` + 1)
+  )
+
+# Plot distributions after log transformation
+ggplot(biomarker_data, aes(x = `E3.ubiquitin.protein.ligase.CHIP_log`)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  ggtitle("Distribution of E3 ubiquitin-protein ligase CHIP (Log-Transformed)") +
+  xlab("Log-Transformed E3 ubiquitin-protein ligase CHIP Levels")
+
+ggplot(biomarker_data, aes(x = `CCAAT.enhancer.binding.protein.beta_log`)) +
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  ggtitle("Distribution of CCAAT/enhancer-binding protein beta (Log-Transformed)") +
+  xlab("Log-Transformed CCAAT/enhancer-binding protein beta Levels")
+```
+Log-transforming the protein levels in biomarker-raw.csv likely aims to address skewed data distributions, where protein values are often right-tailed with extreme outliers. Applying a log transformation makes the distribution more symmetric and reduces the impact of high outliers, helping to stabilize variance and make the data better suited for statistical analysis. This results in a dataset that supports more reliable and accurate modeling, as it aligns better with the assumptions of many analytical methods.
+
+# 2. 
+
+
+
+
+
+
