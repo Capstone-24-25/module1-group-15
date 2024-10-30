@@ -1,8 +1,4 @@
 
-```{r}
-library(ggplot2)
-```
-
 
 ### 1.
 Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
@@ -12,7 +8,7 @@ library(reshape2)
 ```
 
 ```{r}
-data <- read.csv("data/biomarker-raw.csv")
+data <- read.csv("data2/biomarker-raw.csv")
 
 # Convert the selected protein columns to numeric (skip non-numeric values)
 proteins <- data[, 3:7]  # Select a sample of 5 protein columns
@@ -34,5 +30,57 @@ ggplot(proteins_long, aes(x = Level)) +
 The histograms reveal that the distributions of raw protein levels are skewed right, with some values extending to higher ranges. 
 This skewness is a common reason to apply a log transformation, which can help normalize these distributions.
 
+### 2.
+```{r}
+library(dplyr)
+library(tidyr)
+```
 
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+
+# Load the data (assuming it's processed after removing outlier trimming)
+data <- read.csv("data2/biomarker-raw.csv")
+
+# Convert relevant columns to numeric, skipping metadata columns
+protein_data <- data[, -c(1,2)]  # Adjust index based on the actual data structure
+
+# Define a function to identify outliers based on ±3 standard deviations
+identify_outliers <- function(x) {
+  upper_limit <- mean(x, na.rm = TRUE) + 3 * sd(x, na.rm = TRUE)
+  lower_limit <- mean(x, na.rm = TRUE) - 3 * sd(x, na.rm = TRUE)
+  return(x < lower_limit | x > upper_limit)
+}
+
+# Apply the outlier function across all protein columns
+outliers <- protein_data %>%
+  mutate(across(everything(), identify_outliers)) %>%
+  rowwise() %>%
+  mutate(outlier_count = sum(c_across(everything()), na.rm = TRUE)) %>%
+  ungroup()
+
+# Merge with subject ID and group columns
+outlier_summary <- data %>%
+  select(Group) %>%
+  bind_cols(outliers["outlier_count"])
+
+# Summarize the number of outlying values per subject and by group
+outlier_by_group <- outlier_summary %>%
+  group_by(Group) %>%
+  summarise(avg_outliers = mean(outlier_count, na.rm = TRUE),
+            total_outliers = sum(outlier_count, na.rm = TRUE),
+            subjects_with_outliers = sum(outlier_count > 0))
+
+# View results
+print(outlier_by_group)
+
+```
+#### Are there specific subjects (not values) that seem to be outliers?
+Yes, there are specific subjects with outliers. According to the table of nsummary, there are 2 subjects with outlying values in the ASD group.
+
+#### Are outliers more frequent in one group or the other?
+Outliers are more frequent in the ASD group.
+ASD group with a total of 2 outliers, while the TD group has none.
 
