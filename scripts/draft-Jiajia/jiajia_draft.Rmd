@@ -1,0 +1,38 @@
+
+```{r}
+library(ggplot2)
+```
+
+
+### 1.
+Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(reshape2)
+
+# Load the data
+data <- read.csv("data/biomarker-raw.csv")
+
+# Convert the selected protein columns to numeric (skip non-numeric values)
+proteins <- data[, 3:7]  # Select a sample of 5 protein columns
+proteins <- data.frame(lapply(proteins, function(x) as.numeric(as.character(x))))
+
+# Melt the data for ggplot
+
+proteins_long <- melt(proteins, variable.name = "Protein", value.name = "Level")
+
+# Plot histograms for each selected protein
+ggplot(proteins_long, aes(x = Level)) +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
+  facet_wrap(~Protein, scales = "free") +
+  labs(title = "Distribution of Raw Protein Levels (Sample Proteins)",
+       x = "Protein Level", y = "Frequency") +
+  theme_minimal()
+
+```
+The histograms reveal that the distributions of raw protein levels are skewed right, with some values extending to higher ranges. 
+This skewness is a common reason to apply a log transformation, which can help normalize these distributions.
+
+
+
