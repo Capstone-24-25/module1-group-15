@@ -7,11 +7,11 @@ library(ggplot2)
 ### 1.
 Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
 ```{r}
-# Load necessary libraries
 library(ggplot2)
 library(reshape2)
+```
 
-# Load the data
+```{r}
 data <- read.csv("data/biomarker-raw.csv")
 
 # Convert the selected protein columns to numeric (skip non-numeric values)
