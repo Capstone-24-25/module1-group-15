@@ -102,21 +102,47 @@ library(MASS)   #Logistic Regression
 load('data2/biomarker-clean.RData')
 head(biomarker_clean)
 ```
-
+#### Split Training and Testing
 ```{r}
-#set.seed(123)
+set.seed(123)
 
 # Split training (80%) and testing (20%) sets
-#trainIndex <- createDataPartition(biomarker_clean$Group, p = 0.8, list = FALSE)
-#training_data <- data[trainIndex, ]
-#testing_data <- data[-trainIndex, ]
+trainIndex <- createDataPartition(biomarker_clean$group, p = 0.8, list = FALSE)
+training_data <- biomarker_clean[trainIndex, ]
+testing_data <- biomarker_clean[-trainIndex, ]
 
 ```
+
+```{r}
+head(training_data)
+head(testing_data)
+```
+
 
 #### Apply T-test, Random Forest, and Logistic Regression  (Using Top 20 Features)
 
 
 ##### T-test Selection
+
+```{r}
+library(dplyr)
+
+group_column <- training_data$group # For split group
+protein_columns <- training_data %>% select(-group, -ados)  # only protein for testing
+
+
+#T test for all protein
+t_test_results <- sapply(protein_columns, function(protein) {
+  t.test(protein ~ group_column)$p.value
+})
+
+# Convert result into frame
+t_test_df <- data.frame(
+  protein = names(t_test_results),
+  p_value = t_test_results
+)
+```
+
 ```{r}
 # 将数据转换为长格式
 biomarker_long <- biomarker_clean %>%
