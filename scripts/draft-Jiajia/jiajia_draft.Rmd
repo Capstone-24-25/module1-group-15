@@ -152,38 +152,6 @@ top_proteins_ttest <- t_test_df %>%
 print(top_proteins_ttest)
 ```
 
-```{r}
-# 将数据转换为长格式
-biomarker_long <- biomarker_clean %>%
-  pivot_longer(cols = -c(group, ados),  # 除了 group 和 ados 列，其他列都转为长格式
-               names_to = "protein",  # 新列名称，用于存放蛋白质名称
-               values_to = "level")   # 新列名称，用于存放蛋白质水平
-
-# 查看转换后的数据结构
-head(biomarker_long)
-
-```
-
-```{r}
-# 定义 t 检验函数
-test_fn <- function(.df) {
-  t_test(.df, 
-         formula = level ~ group, 
-         alternative = 'two-sided', 
-         var.equal = FALSE)
-}
-
-# 对每个蛋白质进行 t 检验
-tt_out <- biomarker_long %>%
-  mutate(ttest = map(data, test_fn)) %>%
-  unnest(ttest) %>%
-  arrange(p_value)
-# 查看最显著的蛋白质
-tt_out %>% head(10)
-
-```
-
-
 
 
 ##### Random Forest
@@ -266,27 +234,4 @@ print(top_20_proteins)
 
 
 
-#### Fuzzy Intersection
-```{r}
-
-rf_top20 <- important_proteins_rf
-ttest_top20 <- top_proteins_ttest
-logreg_top20 <- top_20_proteins
-
-
-all_top_proteins <- list(rf = rf_top20, ttest = ttest_top20, logreg = logreg_top20)
-
-
-protein_counts <- unlist(all_top_proteins) %>%
-  table() %>%
-  as.data.frame()
-
-
-fuzzy_intersection_proteins <- protein_counts %>%
-  filter(Freq >= 2) %>%
-  pull(.)
-
-print(fuzzy_intersection_proteins)
-
-```
 
