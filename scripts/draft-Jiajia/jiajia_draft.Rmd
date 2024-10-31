@@ -243,7 +243,7 @@ print(top_20_proteins)
 
 ```
 
-#### Fuzzy Interaction
+##### Fuzzy Interaction
 ```{r}
 all_top_proteins <- list(
   ttest = top_proteins_ttest,
