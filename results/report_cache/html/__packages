@@ -8,3 +8,10 @@ dplyr
 stringr
 forcats
 lubridate
+reshape2
+lattice
+caret
+broom
+rstatix
+randomForest
+MASS

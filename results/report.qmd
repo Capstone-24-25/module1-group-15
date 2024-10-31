@@ -23,15 +23,17 @@ library(tidyverse)
 
 ## Abstract
 
-Write a brief one-paragraph abstract that describes the contents of your write-up.
+This report presents a proteomic analysis of serum data aimed at identifying candidate biomarkers for the early detection of autism spectrum disorder (ASD), building on the methodology of Hewitson et al. (2021). We evaluate the effects of various methodological adjustments, including log-transformation of protein levels, outlier handling without data trimming, and the use of a reserved testing partition. To enhance predictive performance, we apply a fuzzy intersection approach for protein selection, constructing refined and alternative panels optimized for classification accuracy. Our findings are compared to previous analyses to assess the robustness and sensitivity of each methodological adjustment.
 
 ## Dataset
 
-Write a brief data description, including: how data were obtained; sample characteristics; variables measured; and data preprocessing. This can be largely based on the source paper and should not exceed 1-2 paragraphs.
+The dataset includes proteomic measurements from serum samples to identify biomarkers associated with autism spectrum disorder (ASD). It consists of 156 samples and 1,320 variables, each representing different protein levels measured in arbitrary units. Key variables include group classifications (e.g., ASD or TD), specific protein levels, and assessment scores like the ADOS Total Score. Data preprocessing for this analysis involved log-transformation of protein levels, handling outliers without trimming, and splitting into training and testing partitions. This approach enables effective feature selection and classification accuracy assessment for candidate biomarkers.
 
 ## Summary of published analysis
 
-Summarize the methodology of the paper in 1-3 paragraphs. You need not explain the methods in depth as we did in class; just indicate what methods were used and how they were combined. If possible, include a diagram that depicts the methodological design. (Quarto has support for [GraphViz and Mermaid flowcharts](https://quarto.org/docs/authoring/diagrams.html).) Provide key results: the proteins selected for the classifier and the estimated accuracy.
+The paper combines statistical tests and machine learning to identify key protein biomarkers associated with a specific condition. It starts with univariate T-tests to evaluate each protein’s association with the condition, narrowing down the most significant proteins. Next, Random Forest and Logistic Regression models prioritize these proteins based on feature importance scores and coefficient values, respectively. This dual-model approach helps identify proteins with the greatest predictive potential.
+
+The analysis identified distinct sets of top proteins for each method. For the T-test selection, the key proteins included **PTN, RELT, MAPK2, DERM, Calcineurin, M2-PK, TFF3, FSTL1, CXCL16, MAPK14, Coagulation Factor IX, IgD, MIA, Fas, MMP-2, IGFBP-4, ROR1, Protein S, 14-3-3 protein zeta/delta**, and **TGF-b R III**, yielding an accuracy of **72.05%** on the testing data. The Random Forest model, achieving an accuracy of **78.95%**, selected proteins such as **eIF-4H, MAPK2, PTN, CSK, MAPK14, M2-PK, DERM, Lysozyme, RELT, ILT-4, CD27, Nectin-like protein 2, Coagulation Factor IX, Calcineurin, Notch 1, IgD, IGFBP-1, SOST, GPVI**, and **MMP-2**. For Logistic Regression, the proteins included **SMAD3, HXK1, Myostatin, HIF-1a, CHKB, ISLR2, CSH, HHLA2, RNF43, OAS1, TIMP-1, CD59, SMOC1, 14-3-3 protein beta/alpha, SNP25, LDLR, S100A4, EFNB1, EFNB2**, and **STAT6**. Combining top proteins across methods via a fuzzy intersection improved the classifier accuracy to **82.42%**. This multi-method approach, particularly the fuzzy intersection, achieved the highest overall predictive accuracy.
 
 ## Findings
 
@@ -39,11 +41,297 @@ Summarize your findings here. I've included some subheaders in a way that seems 
 
 ### Impact of preprocessing and outliers
 
-Tasks 1-2
+### Question 1
+
+Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+```
+
+```{r}
+data <- read.csv("data3/biomarker-raw.csv")
+
+# Convert the selected protein columns to numeric (skip non-numeric values)
+proteins <- data[, 3:7]  # Select a sample of 5 protein columns
+proteins <- data.frame(lapply(proteins, function(x) as.numeric(as.character(x))))
+
+# Melt the data for ggplot
+
+proteins_long <- melt(proteins, variable.name = "Protein", value.name = "Level")
+
+# Plot histograms for each selected protein
+ggplot(proteins_long, aes(x = Level)) +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
+  facet_wrap(~Protein, scales = "free") +
+  labs(title = "Distribution of Raw Protein Levels (Sample Proteins)",
+       x = "Protein Level", y = "Frequency") +
+  theme_minimal()
+
+```
+
+The histograms reveal that the distributions of raw protein levels are skewed right, with some values extending to higher ranges. This skewness is a common reason to apply a log transformation, which can help normalize these distributions.\
+
+### Question 2
+
+```{r}
+library(dplyr)
+library(tidyr)
+```
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+
+
+data <- read.csv("data3/biomarker-raw.csv")
+
+
+protein_data <- data[, -c(1,2)]  
+
+
+identify_outliers <- function(x) {
+  upper_limit <- mean(x, na.rm = TRUE) + 3 * sd(x, na.rm = TRUE)
+  lower_limit <- mean(x, na.rm = TRUE) - 3 * sd(x, na.rm = TRUE)
+  return(x < lower_limit | x > upper_limit)
+}
+
+
+outliers <- protein_data %>%
+  mutate(across(everything(), identify_outliers)) %>%
+  rowwise() %>%
+  mutate(outlier_count = sum(c_across(everything()), na.rm = TRUE)) %>%
+  ungroup()
+
+
+outlier_summary <- data %>%
+  select(Group) %>%
+  bind_cols(outliers["outlier_count"])
+
+
+outlier_by_group <- outlier_summary %>%
+  group_by(Group) %>%
+  summarise(avg_outliers = mean(outlier_count, na.rm = TRUE),
+            total_outliers = sum(outlier_count, na.rm = TRUE),
+            subjects_with_outliers = sum(outlier_count > 0))
+
+# View results
+print(outlier_by_group)
+
+```
+
+#### Are there specific subjects (not values) that seem to be outliers?
+
+Yes, there are specific subjects with outliers. According to the table of nsummary, there are 2 subjects with outlying values in the ASD group.
+
+#### Are outliers more frequent in one group or the other?
+
+Outliers are more frequent in the ASD group. ASD group with a total of 2 outliers, while the TD group has none.
 
 ### Methodlogical variations
 
-Task 3
+### Question 3
+
+```{r}
+library(dplyr)
+library(caret)  #data partition
+library(dplyr)  #ttest
+library(purrr)  #ttest
+library(broom)  #ttest
+library(tidyverse) #ttest
+library(rstatix)
+library(randomForest) #Random Forest
+library(MASS)   #Logistic Regression
+```
+
+```{r}
+load('data3/biomarker-clean.RData')
+head(biomarker_clean)
+```
+
+#### Split Training and Testing
+
+```{r}
+set.seed(123)
+
+# Split training (80%) and testing (20%) sets
+trainIndex <- createDataPartition(biomarker_clean$group, p = 0.8, list = FALSE)
+training_data <- biomarker_clean[trainIndex, ]
+testing_data <- biomarker_clean[-trainIndex, ]
+
+```
+
+```{r}
+head(training_data)
+head(testing_data)
+```
+
+#### Apply T-test, Random Forest, and Logistic Regression (Using Top 20 Features)
+
+##### T-test Selection
+
+```{r}
+library(dplyr)
+
+# Ensure correct names and explicit call to dplyr::select
+group_column <- training_data$group  # Confirm column name is correct
+protein_columns <- dplyr::select(training_data, -group, -ados)  # Explicitly use dplyr
+
+
+
+#T test for all protein
+t_test_results <- sapply(protein_columns, function(protein) {
+  t.test(protein ~ group_column)$p.value
+})
+
+# Convert result into frame
+t_test_df <- data.frame(
+  protein = names(t_test_results),
+  p_value = t_test_results
+)
+
+# Extract top 20 proteins
+top_proteins_ttest <- t_test_df %>%
+  arrange(p_value) %>%
+  slice(1:20) %>%
+  pull(protein)
+
+
+print(top_proteins_ttest)
+```
+
+##### Random Forest
+
+```{r}
+
+library(randomForest)
+library(dplyr)
+
+
+# Alternative approach if select() conflicts remain
+predictors <- training_data[, !names(training_data) %in% c("group", "ados")]
+response <- factor(training_data$group)
+
+
+
+set.seed(101422)
+
+
+rf_model <- randomForest(x = predictors, 
+                         y = response, 
+                         ntree = 1000, 
+                         importance = TRUE)
+
+
+print(rf_model$confusion)
+
+
+important_proteins_rf <- rf_model$importance %>%
+  as_tibble() %>%
+  mutate(protein = rownames(rf_model$importance)) %>%
+  slice_max(MeanDecreaseGini, n = 20) %>%  # top 20
+  pull(protein)
+
+
+print(important_proteins_rf)
+
+```
+
+##### Logistic Regression
+
+```{r}
+
+library(caret)
+library(dplyr)
+
+
+
+train_data_for_model <- training_data %>%
+  dplyr::select(-ados) %>%
+  dplyr::mutate(group = as.factor(group))
+
+
+
+train_control <- trainControl(method = "none")
+
+
+logistic_model <- train(group ~ ., 
+                        data = train_data_for_model,
+                        method = "glm",
+                        family = "binomial",
+                        trControl = train_control)
+
+
+logistic_coefficients <- coef(logistic_model$finalModel)
+
+
+coeff_df <- as.data.frame(logistic_coefficients) %>%
+  rownames_to_column(var = "protein") %>%
+  filter(protein != "(Intercept)") %>%
+  rename(coefficient = logistic_coefficients) %>%
+  mutate(abs_coefficient = abs(coefficient))
+
+
+top_20_proteins <- coeff_df %>%
+  arrange(desc(abs_coefficient)) %>%
+  slice(1:20) %>%
+  pull(protein)
+
+
+print(top_20_proteins)
+
+
+
+```
+
+##### Fuzzy Interaction
+
+```{r}
+all_top_proteins <- list(
+  ttest = top_proteins_ttest,
+  rf = important_proteins_rf,
+  logreg = top_20_proteins
+)
+
+
+fuzzy_intersection_proteins <- all_top_proteins %>%
+  unlist() %>%       
+  table() %>% 
+  .[. >= 2] %>%    
+  names()            
+
+print(fuzzy_intersection_proteins)
+
+```
+
+#### How are results affected by each modification?
+
+```{r}
+# Evaluate each set of selected proteins on testing data
+evaluate_model_accuracy <- function(selected_proteins, model_name) {
+  # Explicitly use dplyr::select() and tidyselect::all_of()
+  predictors <- dplyr::select(testing_data, tidyselect::all_of(selected_proteins))
+  response <- factor(testing_data$group)
+  
+  rf_test <- randomForest(x = predictors, y = response, ntree = 100)
+  accuracy <- sum(diag(rf_test$confusion)) / sum(rf_test$confusion)
+  
+  cat("Accuracy of", model_name, "model on testing data:", accuracy, "\n")
+}
+
+# Evaluate individual methods
+evaluate_model_accuracy(top_proteins_ttest, "T-test")
+evaluate_model_accuracy(important_proteins_rf, "Random Forest")
+#evaluate_model_accuracy(top_20_proteins, "Logistic Regression")
+
+# Evaluate fuzzy intersection
+evaluate_model_accuracy(fuzzy_intersection_proteins, "Fuzzy Intersection")
+
+```
+
+Each method yields different predictive performance, with Random Forest and the Fuzzy Intersection performing similarly well. The fuzzy intersection can be a useful compromise when seeking a balance between different selection criteria, but in this case, it does not significantly outperform Random Forest alone.
 
 ### Improved classifier
 
