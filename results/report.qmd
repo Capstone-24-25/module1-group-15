@@ -27,7 +27,7 @@ This report presents a proteomic analysis of serum data aimed at identifying can
 
 ## Dataset
 
-The dataset includes proteomic measurements from serum samples to identify biomarkers associated with autism spectrum disorder (ASD). It consists of 156 samples and 1,320 variables, each representing different protein levels measured in arbitrary units. Key variables include group classifications (e.g., ASD or control), specific protein levels, and assessment scores like the ADOS Total Score. Data preprocessing for this analysis involved log-transformation of protein levels, handling outliers without trimming, and splitting into training and testing partitions. This approach enables robust feature selection and classification accuracy assessment for candidate biomarkers.
+The dataset includes proteomic measurements from serum samples to identify biomarkers associated with autism spectrum disorder (ASD). It consists of 156 samples and 1,320 variables, each representing different protein levels measured in arbitrary units. Key variables include group classifications (e.g., ASD or TD), specific protein levels, and assessment scores like the ADOS Total Score. Data preprocessing for this analysis involved log-transformation of protein levels, handling outliers without trimming, and splitting into training and testing partitions. This approach enables effective feature selection and classification accuracy assessment for candidate biomarkers.
 
 ## Summary of published analysis
 
@@ -39,7 +39,94 @@ Summarize your findings here. I've included some subheaders in a way that seems 
 
 ### Impact of preprocessing and outliers
 
-Tasks 1-2
+### Question 1
+
+Since `biomarker-raw.csv` contains protein concentration levels across various samples, let's examine the distribution of a sample of these protein values.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+```
+
+```{r}
+data <- read.csv("data3/biomarker-raw.csv")
+
+# Convert the selected protein columns to numeric (skip non-numeric values)
+proteins <- data[, 3:7]  # Select a sample of 5 protein columns
+proteins <- data.frame(lapply(proteins, function(x) as.numeric(as.character(x))))
+
+# Melt the data for ggplot
+
+proteins_long <- melt(proteins, variable.name = "Protein", value.name = "Level")
+
+# Plot histograms for each selected protein
+ggplot(proteins_long, aes(x = Level)) +
+  geom_histogram(bins = 30, color = "black", fill = "skyblue") +
+  facet_wrap(~Protein, scales = "free") +
+  labs(title = "Distribution of Raw Protein Levels (Sample Proteins)",
+       x = "Protein Level", y = "Frequency") +
+  theme_minimal()
+
+```
+
+The histograms reveal that the distributions of raw protein levels are skewed right, with some values extending to higher ranges. This skewness is a common reason to apply a log transformation, which can help normalize these distributions.\
+
+### Question 2
+
+```{r}
+library(dplyr)
+library(tidyr)
+```
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+
+
+data <- read.csv("data3/biomarker-raw.csv")
+
+
+protein_data <- data[, -c(1,2)]  
+
+
+identify_outliers <- function(x) {
+  upper_limit <- mean(x, na.rm = TRUE) + 3 * sd(x, na.rm = TRUE)
+  lower_limit <- mean(x, na.rm = TRUE) - 3 * sd(x, na.rm = TRUE)
+  return(x < lower_limit | x > upper_limit)
+}
+
+
+outliers <- protein_data %>%
+  mutate(across(everything(), identify_outliers)) %>%
+  rowwise() %>%
+  mutate(outlier_count = sum(c_across(everything()), na.rm = TRUE)) %>%
+  ungroup()
+
+
+outlier_summary <- data %>%
+  select(Group) %>%
+  bind_cols(outliers["outlier_count"])
+
+
+outlier_by_group <- outlier_summary %>%
+  group_by(Group) %>%
+  summarise(avg_outliers = mean(outlier_count, na.rm = TRUE),
+            total_outliers = sum(outlier_count, na.rm = TRUE),
+            subjects_with_outliers = sum(outlier_count > 0))
+
+# View results
+print(outlier_by_group)
+
+```
+
+#### Are there specific subjects (not values) that seem to be outliers?
+
+Yes, there are specific subjects with outliers. According to the table of nsummary, there are 2 subjects with outlying values in the ASD group.
+
+#### Are outliers more frequent in one group or the other?
+
+Outliers are more frequent in the ASD group. ASD group with a total of 2 outliers, while the TD group has none.
 
 ### Methodlogical variations
 
