@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 
 
 ### Question 1
@@ -127,8 +132,10 @@ head(testing_data)
 ```{r}
 library(dplyr)
 
-group_column <- training_data$group # For split group
-protein_columns <- training_data %>% select(-group, -ados)  # only protein for testing
+# Ensure correct names and explicit call to dplyr::select
+group_column <- training_data$group  # Confirm column name is correct
+protein_columns <- dplyr::select(training_data, -group, -ados)  # Explicitly use dplyr
+
 
 
 #T test for all protein
@@ -161,8 +168,10 @@ library(randomForest)
 library(dplyr)
 
 
-predictors <- training_data %>% select(-group, -ados) # only proteins
-response <- training_data$group %>% factor()  # For split group
+# Alternative approach if select() conflicts remain
+predictors <- training_data[, !names(training_data) %in% c("group", "ados")]
+response <- factor(training_data$group)
+
 
 
 set.seed(101422)
@@ -195,9 +204,11 @@ library(caret)
 library(dplyr)
 
 
+
 train_data_for_model <- training_data %>%
-  select(-ados) %>%
-  mutate(group = as.factor(group))
+  dplyr::select(-ados) %>%
+  dplyr::mutate(group = as.factor(group))
+
 
 
 train_control <- trainControl(method = "none")
@@ -229,9 +240,57 @@ top_20_proteins <- coeff_df %>%
 print(top_20_proteins)
 
 
+
 ```
 
+#### Fuzzy Interaction
+```{r}
+all_top_proteins <- list(
+  ttest = top_proteins_ttest,
+  rf = important_proteins_rf,
+  logreg = top_20_proteins
+)
 
 
+fuzzy_intersection_proteins <- all_top_proteins %>%
+  unlist() %>%       
+  table() %>% 
+  .[. >= 2] %>%    
+  names()            
 
+print(fuzzy_intersection_proteins)
 
+```
+
+#### How are results affected by each modification?
+
+```{r}
+# Evaluate each set of selected proteins on testing data
+evaluate_model_accuracy <- function(selected_proteins, model_name) {
+  # Explicitly use dplyr::select() and tidyselect::all_of()
+  predictors <- dplyr::select(testing_data, tidyselect::all_of(selected_proteins))
+  response <- factor(testing_data$group)
+  
+  rf_test <- randomForest(x = predictors, y = response, ntree = 100)
+  accuracy <- sum(diag(rf_test$confusion)) / sum(rf_test$confusion)
+  
+  cat("Accuracy of", model_name, "model on testing data:", accuracy, "\n")
+}
+
+# Evaluate individual methods
+evaluate_model_accuracy(top_proteins_ttest, "T-test")
+evaluate_model_accuracy(important_proteins_rf, "Random Forest")
+#evaluate_model_accuracy(top_20_proteins, "Logistic Regression")
+
+# Evaluate fuzzy intersection
+evaluate_model_accuracy(fuzzy_intersection_proteins, "Fuzzy Intersection")
+
+```
+
+Each method yields different predictive performance, with Random Forest and the Fuzzy Intersection performing similarly well.
+The fuzzy intersection can be a useful compromise when seeking a balance between different selection criteria, but in this case, it does not significantly outperform Random Forest alone.
+
+### Question 4
+#### Step 1: Use a Feature Selection Method for a Simpler Panel
+
+#### Step 2: Benchmark Simpler Panel

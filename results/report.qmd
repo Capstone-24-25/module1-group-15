@@ -23,11 +23,11 @@ library(tidyverse)
 
 ## Abstract
 
-Write a brief one-paragraph abstract that describes the contents of your write-up.
+This report presents a proteomic analysis of serum data aimed at identifying candidate biomarkers for the early detection of autism spectrum disorder (ASD), building on the methodology of Hewitson et al. (2021). We evaluate the effects of various methodological adjustments, including log-transformation of protein levels, outlier handling without data trimming, and the use of a reserved testing partition. To enhance predictive performance, we apply a fuzzy intersection approach for protein selection, constructing refined and alternative panels optimized for classification accuracy. Our findings are compared to previous analyses to assess the robustness and sensitivity of each methodological adjustment.
 
 ## Dataset
 
-Write a brief data description, including: how data were obtained; sample characteristics; variables measured; and data preprocessing. This can be largely based on the source paper and should not exceed 1-2 paragraphs.
+The dataset includes proteomic measurements from serum samples to identify biomarkers associated with autism spectrum disorder (ASD). It consists of 156 samples and 1,320 variables, each representing different protein levels measured in arbitrary units. Key variables include group classifications (e.g., ASD or control), specific protein levels, and assessment scores like the ADOS Total Score. Data preprocessing for this analysis involved log-transformation of protein levels, handling outliers without trimming, and splitting into training and testing partitions. This approach enables robust feature selection and classification accuracy assessment for candidate biomarkers.
 
 ## Summary of published analysis
 
