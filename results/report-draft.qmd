@@ -1,0 +1,400 @@
+---
+title: "Biomarkers of ASD"
+subtitle: "If you want a subtitle put it here"
+author: "List names here"
+date: last-modified
+published-title: "Updated"
+editor: visual
+format: html
+code-copy: true
+execute:
+  message: false
+  warning: false
+  echo: false
+  cache: true
+---
+
+Use this as a template. Keep the headers and remove all other text. In all, your report can be quite short. When it is complete, render and then push changes to your team repository.
+
+```{r}
+# load any other packages and read data here
+library(tidyverse)
+library(tidymodels)
+library(ggplot2)
+library(infer)
+library(randomForest)
+library(modelr)
+library(yardstick)
+library(fuzzyjoin)
+```
+
+## Abstract
+
+Write a brief one-paragraph abstract that describes the contents of your write-up.
+
+## Dataset
+
+Write a brief data description, including: how data were obtained; sample characteristics; variables measured; and data preprocessing. This can be largely based on the source paper and should not exceed 1-2 paragraphs.
+
+## Summary of published analysis
+
+Summarize the methodology of the paper in 1-3 paragraphs. You need not explain the methods in depth as we did in class; just indicate what methods were used and how they were combined. If possible, include a diagram that depicts the methodological design. (Quarto has support for [GraphViz and Mermaid flowcharts](https://quarto.org/docs/authoring/diagrams.html).) Provide key results: the proteins selected for the classifier and the estimated accuracy.
+
+## Findings
+
+Summarize your findings here. I've included some subheaders in a way that seems natural to me; you can structure this section however you like.
+
+### Impact of preprocessing and outliers
+
+Tasks 1-2
+
+<<<<<<< Updated upstream
+```{r}
+# 1 - investigating log transform
+var_names <- read_csv('~/Desktop/P197A/module1-group-15/data/biomarker-raw.csv', 
+                     col_names = F, 
+                     n_max = 2, 
+                     col_select = -(1:2)) %>%
+  t() %>%
+  as_tibble() %>%
+  rename(name = V1, 
+         abbreviation = V2) %>%
+  na.omit()
+
+# adding trim function
+trim <- function(x, .at){
+  x[abs(x) > .at] <- sign(x[abs(x) > .at])*.at
+  return(x)
+}
+
+# getting clean data without the log transform
+biomarker_clean_nolog <- read_csv('~/Desktop/P197A/module1-group-15/data/biomarker-raw.csv', 
+         skip = 2,
+         col_select = -2L,
+         col_names = c('group', 
+                       'empty',
+                       pull(var_names, abbreviation),
+                       'ados'),
+         na = c('-', '')) %>%
+  filter(!is.na(group)) %>%
+  mutate(across(.cols = -c(group, ados), 
+                ~ trim(.x, .at = 1000))) %>%
+  # reorder columns
+  select(group, ados, everything())
+
+# plotting distribution for sample of proteins
+
+# first for CHIP
+ggplot(data = biomarker_clean_nolog, aes(x = (CHIP))) + geom_density()
+
+# second for STAT3
+ggplot(data = biomarker_clean_nolog, aes(x = (STAT3))) + geom_density()
+
+# third for IgA
+ggplot(data = biomarker_clean_nolog, aes(x = (IgA))) + geom_density()
+```
+
+The three plots for sampled proteins in `biomarker_clean` show that the levels of proteins have ranges of 500-700. By log-transforming the data, the range of these proteins shrinks significantly (by a couple orders of magnitude). Log-transforming the data provides a smaller range of values to compare observations while still effectively the difference in magnitude of protein levels between observations.
+
+```{r}
+# 2 - investigating outliers
+```
+
+### Methodlogical variations
+
+```{r}
+# 3.1 - completing selection with training partition
+set.seed(20757)
+split <- initial_split(biomarker_clean, prop = 0.70)
+biomarker_train <- training(split)
+biomarker_test <- testing(split)
+```
+
+```{r}
+# 3.1 - training and testing split
+# Multiple Testing 
+ttests_out <- biomarker_train %>%
+  select(-ados) %>%
+  pivot_longer(-group, 
+               names_to = 'protein', 
+               values_to = 'level') %>%
+  nest(data = c(level, group)) %>% 
+  mutate(ttest = map(data, test_fn)) %>%
+  unnest(ttest) %>%
+  arrange(p_value) %>%
+  mutate(m = n(),
+         hm = log(m) + 1/(2*m) - digamma(1),
+         rank = row_number(),
+         p.adj = m*hm*p_value/rank)
+
+# selecting predictors from multiple testing
+proteins_s1 <- ttests_out %>%
+  slice_min(p.adj, n = 10) %>%
+  pull(protein) %>%
+  print()
+```
+
+Immediately, we see that the proteins selected from multiple testing with the training data is a different set of proteins than the full data (as seen in the results presented in class).
+
+```{r}
+# 3.1 - training and testing split
+# Random Forest
+# store predictors and response separately
+predictors <- biomarker_train %>%
+  select(-c(group, ados))
+
+response <- biomarker_train %>% pull(group) %>% factor()
+
+# fit RF
+set.seed(101422) # retaining the seed set in inclass-analysis.R for better results
+rf_out <- randomForest(x = predictors, 
+                       y = response, 
+                       ntree = 1000, 
+                       importance = T)
+
+# check errors
+rf_out$confusion
+
+# compute importance scores
+proteins_s2 <- rf_out$importance %>% 
+  as_tibble() %>%
+  mutate(protein = rownames(rf_out$importance)) %>%
+  slice_max(MeanDecreaseGini, n = 10) %>%
+  pull(protein) %>%
+  print()
+```
+
+The confusion matrix for the random forest has a higher error rate for children with ASD but a lower error for TD children. However, this provides little meaning because it's with the training data.
+
+Similar to the results of multiple testing with the training data, the significant proteins from the random forest using the training data are not exactly the same as the results shown in class. The shared proteins between these results are IgD, DERM, MAPK14, eIF-4H, CK-MB, and TGF-b R III.
+
+```{r}
+# 3.1 - training and testing split
+# Logistic Regression
+# select subset of interest
+proteins_sstar <- intersect(proteins_s1, proteins_s2)
+
+biomarker_sstar_train <- biomarker_train %>%
+  select(group, any_of(proteins_sstar)) %>%
+  mutate(class = (group == 'ASD')) %>%
+  select(-group)
+
+# converting testing data into similar form for accuracy testing at the end
+biomarker_sstar_test <- biomarker_test %>%
+  select(group, any_of(proteins_sstar)) %>%
+  mutate(class = (group == 'ASD')) %>%
+  select(-group)
+
+# partition into training and test set
+set.seed(101422)
+biomarker_split <- biomarker_sstar %>%
+  initial_split(prop = 0.8)
+
+# fit logistic regression model to training set
+fit <- glm(class ~ ., 
+           data = biomarker_sstar_train, 
+           family = 'binomial')
+
+# evaluate errors on test set
+class_metrics <- metric_set(sensitivity, 
+                            specificity, 
+                            accuracy,
+                            roc_auc)
+
+biomarker_sstar_test %>%
+  add_predictions(fit, type = 'response') %>%
+  mutate(est = as.factor(pred > 0.5), tr_c = as.factor(class)) %>%
+  class_metrics(estimate = est,
+              truth = tr_c, pred,
+              event_level = 'second')
+```
+
+From splitting the data into training and testing at the very beginning, we yield a lower sensitivity, specificity, and accuracy than the results shown in class (on the entire dataset). While the metrics are lower, indicating this process does worse, it is likely an indication that using the entire dataset is a mistake. Using the entire data set implies using some of the observations that will inevitably be testing data, which is over-fitting the model to results. Thus, this process is probably a better indicator of models' performance.
+
+For the next part of selecting a larger number of proteins for each process, we'll increase the number of significant proteins (for both multiple testing and random forests) from 10 to 20. Additionally, to keep testing the results from the three processes separate, we'll return to using the entire data set like shown in lecture. 
+
+```{r}
+# 3.2 - choosing larger number of proteins
+### multiple testing
+ttests_out <- biomarker_clean %>%
+  # drop ADOS score
+  select(-ados) %>%
+  # arrange in long format
+  pivot_longer(-group, 
+               names_to = 'protein', 
+               values_to = 'level') %>%
+  # nest by protein
+  nest(data = c(level, group)) %>% 
+  # compute t tests
+  mutate(ttest = map(data, test_fn)) %>%
+  unnest(ttest) %>%
+  # sort by p-value
+  arrange(p_value) %>%
+  # multiple testing correction
+  mutate(m = n(),
+         hm = log(m) + 1/(2*m) - digamma(1),
+         rank = row_number(),
+         p.adj = m*hm*p_value/rank)
+
+# select significant proteins
+proteins_s1 <- ttests_out %>%
+  slice_min(p.adj, n = 20) %>%
+  pull(protein)
+
+### random forest
+# store predictors and response separately
+predictors <- biomarker_clean %>%
+  select(-c(group, ados))
+
+response <- biomarker_clean %>% pull(group) %>% factor()
+
+# fit RF
+set.seed(101422)
+rf_out <- randomForest(x = predictors, 
+                       y = response, 
+                       ntree = 1000, 
+                       importance = T)
+
+# check errors
+rf_out$confusion
+
+# compute importance scores
+proteins_s2 <- rf_out$importance %>% 
+  as_tibble() %>%
+  mutate(protein = rownames(rf_out$importance)) %>%
+  slice_max(MeanDecreaseGini, n = 20) %>%
+  pull(protein)
+```
+
+```{r}
+# 3.2 - choosing larger number of proteins
+proteins_sstar <- intersect(proteins_s1, proteins_s2) %>%
+  print()
+```
+
+Looking the intersection, we can see the number of proteins is 11, already larger than what we could get selecting 10 proteins from both methods.
+
+```{r}
+biomarker_sstar <- biomarker_clean %>%
+  select(group, any_of(proteins_sstar)) %>%
+  mutate(class = (group == 'ASD')) %>%
+  select(-group)
+
+# partition into training and test set
+set.seed(101422)
+biomarker_split <- biomarker_sstar %>%
+  initial_split(prop = 0.8)
+
+# fit logistic regression model to training set
+fit <- glm(class ~ ., 
+           data = training(biomarker_split), 
+           family = 'binomial')
+
+# evaluate errors on test set
+class_metrics <- metric_set(sensitivity, 
+                            specificity, 
+                            accuracy,
+                            roc_auc)
+
+testing(biomarker_split) %>%
+  add_predictions(fit, type = 'response') %>%
+  mutate(est = as.factor(pred > 0.5), tr_c = as.factor(class)) %>%
+  class_metrics(estimate = est,
+              truth = tr_c, pred,
+              event_level = 'second')
+```
+
+The metrics from selecting a larger number of predictors (n = 20 for us) is significantly higher than the results of n = 10 from lecture. However, like we mentioned when investigating the results of splitting the data, this model may be over-fitting a bit which would inflate these values. Performing the analysis again combined with splitting data at the beginning would likely show an improvement in predictive accuracy while presenting more realistic metrics.
+
+Finally, we'll investigate how using a fuzzy intersection rather than a hard intersection impacts the metrics of the final logistic regression model. We'll repeat the same steps as done in lecture, with the only change being the fuzzy intersection when selecting the proteins for the logistic regression model. 
+
+```{r}
+# 3.3 - fuzzy intersection
+### multiple testing 
+ttests_out <- biomarker_clean %>%
+  # drop ADOS score
+  select(-ados) %>%
+  # arrange in long format
+  pivot_longer(-group, 
+               names_to = 'protein', 
+               values_to = 'level') %>%
+  # nest by protein
+  nest(data = c(level, group)) %>% 
+  # compute t tests
+  mutate(ttest = map(data, test_fn)) %>%
+  unnest(ttest) %>%
+  # sort by p-value
+  arrange(p_value) %>%
+  # multiple testing correction
+  mutate(m = n(),
+         hm = log(m) + 1/(2*m) - digamma(1),
+         rank = row_number(),
+         p.adj = m*hm*p_value/rank)
+
+# select significant proteins
+proteins_s1 <- ttests_out %>%
+  slice_min(p.adj, n = 10) %>%
+  pull(protein)
+
+### random forest 
+set.seed(101422)
+rf_out <- randomForest(x = predictors, 
+                       y = response, 
+                       ntree = 1000, 
+                       importance = T)
+
+# compute importance scores
+proteins_s2 <- rf_out$importance %>% 
+  as_tibble() %>%
+  mutate(protein = rownames(rf_out$importance)) %>%
+  slice_max(MeanDecreaseGini, n = 10) %>%
+  pull(protein)
+```
+
+```{r}
+# 3.3 - fuzzy intersection
+### logistic regression
+proteins_sstar <- c(proteins_s1, proteins_s2) %>%
+  unique()
+
+
+biomarker_sstar <- biomarker_clean %>%
+  select(group, any_of(proteins_sstar)) %>%
+  mutate(class = (group == 'ASD')) %>%
+  select(-group)
+
+# partition into training and test set
+set.seed(101422)
+biomarker_split <- biomarker_sstar %>%
+  initial_split(prop = 0.8)
+
+# fit logistic regression model to training set
+fit <- glm(class ~ ., 
+           data = training(biomarker_split), 
+           family = 'binomial')
+
+# evaluate errors on test set
+class_metrics <- metric_set(sensitivity, 
+                            specificity, 
+                            accuracy,
+                            roc_auc)
+
+testing(biomarker_split) %>%
+  add_predictions(fit, type = 'response') %>%
+  mutate(est = as.factor(pred > 0.5), tr_c = as.factor(class)) %>%
+  class_metrics(estimate = est,
+              truth = tr_c, pred,
+              event_level = 'second')
+```
+
+The results from the fuzzy intersection of the proteins are significantly worse than the original process demonstrated in lecture. This implies that some of the "best" proteins selected from the multiple testing and or the random forest aren't good indicators of detecting ASD but are included because of the fuzzy intersection. 
+
+The combination of these results suggest that to improve the predictive accuracy of the model, one should stratifying data at the beginning and select a larger number of proteins from the two methods. However, doing a fuzzy intersection of the expanded proteins would not improve predictive accuracy, so sticking with the regular intersection or developing some other method protein selection is more viable.
+
+### Methodlogical variations
+
+Task 3
+
+### Improved classifier
+
+Task 4
