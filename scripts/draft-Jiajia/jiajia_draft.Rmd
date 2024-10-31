@@ -85,44 +85,97 @@ Outliers are more frequent in the ASD group.
 ASD group with a total of 2 outliers, while the TD group has none.
 
 ### Question 3
-#### Step 1: Split Data into Training and Testing Sets
+
 ```{r}
 library(dplyr)
 library(caret)  #data partition
+library(dplyr)  #ttest
+library(purrr)  #ttest
+library(broom)  #ttest
+library(tidyverse) #ttest
+library(rstatix)
+library(randomForest) #Random Forest
+library(MASS)   #Logistic Regression
 ```
 
 ```{r}
-# Load the data
-data <- read.csv("data2/biomarker-raw.csv")
-
-# Set seed for reproducibility
-set.seed(123)
-
-# Split data into training (80%) and testing (20%) sets
-trainIndex <- createDataPartition(data$Group, p = 0.8, list = FALSE)
-training_data <- data[trainIndex, ]
-testing_data <- data[-trainIndex, ]
-
+load('data2/biomarker-clean.RData')
+head(biomarker_clean)
 ```
 
-#### Step 2: Selection of Top Predictive Proteins (Using a Larger Set)
 ```{r}
-# Load necessary library
-library(MASS)
+#set.seed(123)
 
-# Define formula with all protein features
-formula <- as.formula(paste("Group ~", paste(colnames(training_data)[-c(1,2)], collapse = " + ")))
-
-# Run logistic regression with forward stepwise selection based on AIC
-logistic_model <- glm(formula, data = training_data, family = binomial)
-stepwise_model <- stepAIC(logistic_model, direction = "forward")
-
-# Extract selected protein features
-top_proteins_logreg <- names(coef(stepwise_model))[-1]  # Exclude intercept
-print("Top proteins from logistic regression:")
-print(top_proteins_logreg)
-
+# Split training (80%) and testing (20%) sets
+#trainIndex <- createDataPartition(biomarker_clean$Group, p = 0.8, list = FALSE)
+#training_data <- data[trainIndex, ]
+#testing_data <- data[-trainIndex, ]
 
 ```
 
+#### Apply T-test, Random Forest, and Logistic Regression  (Using Top 20 Features)
+
+
+##### T-test Selection
+```{r}
+# 将数据转换为长格式
+biomarker_long <- biomarker_clean %>%
+  pivot_longer(cols = -c(group, ados),  # 除了 group 和 ados 列，其他列都转为长格式
+               names_to = "protein",  # 新列名称，用于存放蛋白质名称
+               values_to = "level")   # 新列名称，用于存放蛋白质水平
+
+# 查看转换后的数据结构
+head(biomarker_long)
+
+```
+
+```{r}
+# 定义 t 检验函数
+test_fn <- function(.df) {
+  t_test(.df, 
+         formula = level ~ group, 
+         alternative = 'two-sided', 
+         var.equal = FALSE)
+}
+
+# 对每个蛋白质进行 t 检验
+tt_out <- biomarker_long %>%
+  mutate(ttest = map(data, test_fn)) %>%
+  unnest(ttest) %>%
+  arrange(p_value)
+# 查看最显著的蛋白质
+tt_out %>% head(10)
+
+```
+
+
+
+
+##### Random Forest
+```{r}
+predictors <- biomarker_clean %>%
+  select(-c(group, ados))
+
+response <- biomarker_clean %>% pull(group) %>% factor()
+
+# fit RF
+set.seed(101422)
+rf_out <- randomForest(x = predictors, 
+                       y = response, 
+                       ntree = 1000, 
+                       importance = T)
+
+# check errors
+rf_out$confusion
+
+# compute importance scores
+proteins_s2 <- rf_out$importance %>% 
+  as_tibble() %>%
+  mutate(protein = rownames(rf_out$importance)) %>%
+  slice_max(MeanDecreaseGini, n = 20) %>%
+  pull(protein)
+# 打印最重要的10个蛋白质的名称
+print(proteins_s2)
+
+```
 
