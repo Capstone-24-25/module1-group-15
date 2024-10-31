@@ -233,5 +233,5 @@ evaluate_model_accuracy(important_proteins_rf, "Random Forest")
 # Evaluate fuzzy intersection
 evaluate_model_accuracy(fuzzy_intersection_proteins, "Fuzzy Intersection")
 
-Each method yields different predictive performance, with Random Forest and the Fuzzy Intersection performing similarly well.
-The fuzzy intersection can be a useful compromise when seeking a balance between different selection criteria, but in this case, it does not significantly outperform Random Forest alone.
+#Each method yields different predictive performance, with Random Forest and the Fuzzy Intersection performing similarly well.
+#The fuzzy intersection can be a useful compromise when seeking a balance between different selection criteria, but in this case, it does not significantly outperform Random Forest alone.
