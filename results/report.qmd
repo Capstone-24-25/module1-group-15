@@ -335,4 +335,59 @@ Each method yields different predictive performance, with Random Forest and the 
 
 ### Improved classifier
 
-Task 4
+Accuracy of T-test model on testing data: 0.720524
+
+Accuracy of Random Forest model on testing data: 0.7894737
+
+Accuracy of Fuzzy Intersection model on testing data: 0.8241758
+
+Each method shows varying levels of predictive accuracy, with Random Forest and the Fuzzy Intersection achieving comparable results. The fuzzy intersection provides a balanced approach by integrating selections from multiple criteria, though in this instance, it does not notably exceed the performance of Random Forest on its own.
+
+```{r}
+library(caret)
+
+
+training_data$group <- factor(training_data$group)
+
+
+control <- rfeControl(functions = lrFuncs, method = "cv", number = 10)
+
+
+predictors_data <- training_data[, !names(training_data) %in% c("group", "ados")]
+
+
+rfe_results <- rfe(
+  x = predictors_data,
+  y = training_data$group,
+  sizes = c(5, 10, 15),
+  rfeControl = control
+)
+
+
+simpler_panel <- predictors(rfe_results)
+print(simpler_panel)
+
+```
+
+```{r}
+# Evaluate the simpler panel on testing data
+evaluate_model_accuracy(simpler_panel, "Simpler Panel")
+
+```
+
+```{r}
+# Experiment with a larger fuzzy intersection threshold
+alternative_proteins <- all_top_proteins %>%
+  unlist() %>%       
+  table() %>% 
+  .[. >= 3] %>%     # Adjust threshold for stricter selection
+  names()
+
+# Evaluate the alternative panel on testing data
+evaluate_model_accuracy(alternative_proteins, "Alternative Panel")
+
+```
+
+-   **Initial Panels**: T-test, Random Forest, Logistic Regression, Fuzzy Intersection (original)
+
+-   **New Panels**: Simpler Panel (RFE) and Alternative Panel (modified fuzzy intersection)
