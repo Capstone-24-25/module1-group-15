@@ -370,20 +370,19 @@ print(simpler_panel)
 ```
 
 ```{r}
-# Evaluate the simpler panel on testing data
+
 evaluate_model_accuracy(simpler_panel, "Simpler Panel")
 
 ```
 
 ```{r}
-# Experiment with a larger fuzzy intersection threshold
 alternative_proteins <- all_top_proteins %>%
   unlist() %>%       
   table() %>% 
-  .[. >= 3] %>%     # Adjust threshold for stricter selection
+  .[. >= 3] %>%    
   names()
 
-# Evaluate the alternative panel on testing data
+
 evaluate_model_accuracy(alternative_proteins, "Alternative Panel")
 
 ```
